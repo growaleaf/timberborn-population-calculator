@@ -1,0 +1,565 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Timberborn — Population Growth &amp; Breeding Projection Calculator</title>
+<meta name="description" content="Enter your colony's current population, food surplus, water surplus and breeding setup and see a projected growth timeline — with a warning for the exact day your surplus runs out if the population you're about to add keeps growing.">
+<style>
+  :root {
+    --bg: #11140f;
+    --panel: #1b2117;
+    --panel-border: #343d2c;
+    --ink: #e7e9e0;
+    --ink-dim: #9aa38d;
+    --accent: #7a8f4f;
+    --accent-bright: #b8d173;
+    --field-bg: #0d100a;
+    --warn: #c2874f;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    line-height: 1.55;
+  }
+  main {
+    max-width: 880px;
+    margin: 0 auto;
+    padding: 32px 20px 80px;
+  }
+  h1 {
+    font-size: 1.4rem;
+    margin: 0 0 4px;
+    border-bottom: 1px solid var(--panel-border);
+    padding-bottom: 16px;
+  }
+  .sub {
+    color: var(--ink-dim);
+    font-size: 0.93rem;
+    margin: 0 0 28px;
+  }
+  .sub a { color: var(--accent-bright); }
+  .correction-box {
+    background: rgba(194, 135, 79, 0.12);
+    border: 1px solid var(--warn);
+    border-radius: 4px;
+    padding: 12px 14px;
+    font-size: 0.85rem;
+    margin: 0 0 24px;
+  }
+  .correction-box .label {
+    color: var(--warn);
+    font-weight: 600;
+    text-transform: uppercase;
+    font-size: 0.72rem;
+    letter-spacing: 0.03em;
+    display: block;
+    margin-bottom: 4px;
+  }
+  section {
+    background: var(--panel);
+    border: 1px solid var(--panel-border);
+    border-radius: 6px;
+    padding: 20px 22px;
+    margin-bottom: 20px;
+  }
+  section h2 {
+    font-size: 1.1rem;
+    margin: 0 0 6px;
+  }
+  .section-note {
+    color: var(--ink-dim);
+    font-size: 0.85rem;
+    margin: 0 0 16px;
+  }
+  .field-row {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+    gap: 14px;
+    margin-bottom: 14px;
+  }
+  .field {
+    display: flex;
+    flex-direction: column;
+  }
+  label.field-label {
+    font-size: 0.85rem;
+    color: var(--ink-dim);
+    margin-bottom: 6px;
+  }
+  label.field-label .hint {
+    color: var(--warn);
+    font-size: 0.75rem;
+  }
+  input[type="number"], select {
+    width: 100%;
+    background: var(--field-bg);
+    color: var(--ink);
+    border: 1px solid var(--panel-border);
+    border-radius: 4px;
+    padding: 9px 10px;
+    font-size: 1rem;
+  }
+  input[type="number"]:focus, select:focus {
+    outline: 1px solid var(--accent);
+  }
+  .faction-row {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 20px;
+  }
+  .faction-btn {
+    flex: 1;
+    background: var(--field-bg);
+    border: 1px solid var(--panel-border);
+    color: var(--ink);
+    border-radius: 6px;
+    padding: 12px;
+    font-size: 0.95rem;
+    cursor: pointer;
+    text-align: center;
+  }
+  .faction-btn.active {
+    border-color: var(--accent);
+    background: rgba(122, 143, 79, 0.18);
+    color: var(--accent-bright);
+    font-weight: 600;
+  }
+  .hidden { display: none; }
+  .output-box {
+    border-top: 1px solid var(--panel-border);
+    margin-top: 6px;
+    padding-top: 14px;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+    gap: 10px;
+  }
+  .output-cell {
+    background: var(--field-bg);
+    border: 1px solid var(--panel-border);
+    border-radius: 4px;
+    padding: 10px 12px;
+  }
+  .output-cell .output-label {
+    font-size: 0.78rem;
+    color: var(--ink-dim);
+    display: block;
+    margin-bottom: 3px;
+  }
+  .output-cell .output-value {
+    font-size: 1.15rem;
+    font-weight: 600;
+    color: var(--accent-bright);
+  }
+  .output-cell .output-value.deficit { color: var(--warn); }
+  .output-cell .output-sub {
+    font-size: 0.75rem;
+    color: var(--ink-dim);
+    display: block;
+    margin-top: 3px;
+  }
+  table.curve {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.85rem;
+    margin-top: 16px;
+  }
+  table.curve th, table.curve td {
+    border: 1px solid var(--panel-border);
+    padding: 6px 9px;
+    text-align: left;
+  }
+  table.curve th {
+    color: var(--ink-dim);
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+  }
+  table.curve td.num { font-weight: 600; color: var(--accent-bright); }
+  table.curve td.num.deficit { color: var(--warn); }
+  table.curve tr.warning-row td { background: rgba(194, 135, 79, 0.12); }
+  .sources-section {
+    font-size: 0.82rem;
+    color: var(--ink-dim);
+  }
+  .sources-section h2 { font-size: 1.05rem; }
+  .sources-section ol { margin: 6px 0 16px; padding-left: 22px; }
+  .sources-section li { margin-bottom: 8px; }
+  .sources-section a { color: var(--accent-bright); }
+  .sources-section .verified { color: var(--ink); font-weight: 600; }
+  .self-test { font-size: 0.75rem; color: var(--ink-dim); margin-top: 10px; }
+  .self-test.ok { color: var(--accent-bright); }
+  .self-test.bad { color: var(--warn); }
+  footer {
+    max-width: 880px;
+    margin: 0 auto;
+    padding: 0 20px 40px;
+    font-size: 0.8rem;
+    color: var(--ink-dim);
+  }
+  footer a { color: var(--accent-bright); }
+</style>
+</head>
+<body>
+<main>
+  <h1>Timberborn — Population Growth &amp; Breeding Projection Calculator</h1>
+  <p class="sub">Enter your colony's current population, food surplus, water surplus and breeding
+  setup from <a href="https://store.steampowered.com/app/1062090" target="_blank" rel="noopener">Timberborn</a>'s
+  own overview panel and see a projected population timeline, with a clear warning for the day your
+  entered surplus runs negative if the population you're about to grow keeps growing. Nothing here is
+  saved or sent anywhere; the math runs in your browser.</p>
+
+  <div class="correction-box">
+    <span class="label">Correction to the brief this tool was built from</span>
+    The brief's input list ("number of Breeding Pods") describes the Iron Teeth faction only.
+    Folktails don't build Breeding Pods — they breed naturally in housing, and no source found this
+    session publishes a per-day breeding probability for that mechanic, so a day-by-day growth curve
+    for Folktails would be fabricated. This page covers Iron Teeth with a full projected timeline
+    (fully sourced, deterministic), and Folktails with the official steady-state formula instead of
+    an invented curve — see the Folktails panel and Sources below for why.
+  </div>
+
+  <section>
+    <h2>Your faction</h2>
+    <div class="faction-row">
+      <button type="button" class="faction-btn active" id="btnIronTeeth">Iron Teeth (Breeding Pods)</button>
+      <button type="button" class="faction-btn" id="btnFolktails">Folktails (natural, housing-based)</button>
+    </div>
+
+    <!-- IRON TEETH -->
+    <div id="ironTeethPanel">
+      <p class="section-note">Read population and well-being off your colony overview; read food/water
+      surplus off the resource panel (units/day, can be negative already).</p>
+      <div class="field-row">
+        <div class="field">
+          <label class="field-label" for="itPop">Current population</label>
+          <input type="number" id="itPop" min="0" step="1" value="30">
+        </div>
+        <div class="field">
+          <label class="field-label" for="itPods">Number of Breeding Pods</label>
+          <input type="number" id="itPods" min="0" step="1" value="2">
+        </div>
+        <div class="field">
+          <label class="field-label" for="itWellbeing">Colony well-being (0-100)</label>
+          <input type="number" id="itWellbeing" min="0" max="100" step="1" value="50">
+        </div>
+        <div class="field">
+          <label class="field-label" for="itCycle">Pod cycle length (days) <span class="hint">default 5, see Sources</span></label>
+          <input type="number" id="itCycle" min="1" step="1" value="5">
+        </div>
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label class="field-label" for="itFood">Food surplus (units/day, own panel)</label>
+          <input type="number" id="itFood" step="0.1" value="20">
+        </div>
+        <div class="field">
+          <label class="field-label" for="itWater">Water surplus (units/day, own panel)</label>
+          <input type="number" id="itWater" step="0.1" value="15">
+        </div>
+        <div class="field">
+          <label class="field-label" for="itTarget">Target population (optional)</label>
+          <input type="number" id="itTarget" min="0" step="1" value="">
+        </div>
+      </div>
+      <div class="output-box" id="itOutputBox"></div>
+      <div style="overflow-x:auto;">
+        <table class="curve" id="itCurveTable"><thead></thead><tbody></tbody></table>
+      </div>
+    </div>
+
+    <!-- FOLKTAILS -->
+    <div id="folktailsPanel" class="hidden">
+      <p class="section-note">Folktails breed naturally in occupied Lodges/Triple Lodges with spare
+      beds and positive well-being — there is no "pod count" to enter. No source this session
+      publishes the actual per-day breeding chance, so this panel gives the official steady-state
+      estimate and your resource ceiling instead of a week-by-week curve.</p>
+      <div class="field-row">
+        <div class="field">
+          <label class="field-label" for="ftPop">Current population</label>
+          <input type="number" id="ftPop" min="0" step="1" value="20">
+        </div>
+        <div class="field">
+          <label class="field-label" for="ftHouseholds">Breeding households (occupied Lodge/Triple Lodge, 2+ adults, spare bed)</label>
+          <input type="number" id="ftHouseholds" min="0" step="1" value="3">
+        </div>
+        <div class="field">
+          <label class="field-label" for="ftLifeExp">Average life expectancy (days)</label>
+          <input type="number" id="ftLifeExp" min="1" step="1" value="60">
+        </div>
+        <div class="field">
+          <label class="field-label" for="ftMaturation">Kit maturation (days) <span class="hint">conflict — see Sources</span></label>
+          <input type="number" id="ftMaturation" min="1" step="1" value="5">
+        </div>
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label class="field-label" for="ftFood">Food surplus (units/day, own panel)</label>
+          <input type="number" id="ftFood" step="0.1" value="15">
+        </div>
+        <div class="field">
+          <label class="field-label" for="ftWater">Water surplus (units/day, own panel)</label>
+          <input type="number" id="ftWater" step="0.1" value="10">
+        </div>
+      </div>
+      <div class="output-box" id="ftOutputBox"></div>
+    </div>
+  </section>
+
+  <section class="sources-section">
+    <h2>Sources &amp; last verified date</h2>
+    <p class="verified">All figures below fetched directly 2026-10-09. Every numeric constant is
+    checked against a second independent source where one exists; where it doesn't, that's stated
+    below and the field is editable rather than hidden.</p>
+    <ol>
+      <li><a href="https://timberborn.wiki.gg/wiki/Breeding_Pod" target="_blank" rel="noopener">timberborn.wiki.gg/wiki/Breeding_Pod</a>
+      — Breeding Pod costs 10 Logs, consumes 5 Water + 5 Berries per 5-day cycle to produce 1 kit.
+      <code>timberborn.org/articles/breeding-reproduction-guide</code> corroborates the mechanic
+      ("require berries and water to operate") but gives no cycle length or quantities, so the exact
+      numbers are single-sourced to wiki.gg.</li>
+      <li><a href="https://timberborn.wiki.gg/wiki/Breeding" target="_blank" rel="noopener">timberborn.wiki.gg/wiki/Breeding</a>
+      — Iron Teeth pod capacity formula <code>k = Amax/5</code> with the well-being-band table used
+      on this page (10/12/14/16/18/20/21/22 beavers per pod across bands 1-6 through 67+); the
+      Folktails equilibrium ratio <code>lifeExpectancy / 5</code>, with the page's own worked example
+      ("at a life expectancy of 60 days, there will be 1 kit for every 12 adults") reproduced exactly
+      by this page's math (see test.js, Scenario C). Single-sourced — timberborn.org does not publish
+      either formula.</li>
+      <li><strong>Conflict, not corroborated:</strong> wiki.gg's breeding formula uses "5" explicitly
+      described as "the number of days for kits to mature," but
+      <a href="https://timberborn.org/wiki/beaver-life-stages/kit" target="_blank" rel="noopener">timberborn.org/wiki/beaver-life-stages/kit</a>
+      states "Kits mature into Adults after 6 days" at base Growth Speed (3-4 days to longer,
+      depending on well-being). Per this lane's sourcing rule, an unresolved conflict ships as a
+      player-editable field, not a fabricated single value — see "Kit maturation (days)" above,
+      defaulted to wiki.gg's 5 because that is the value the capacity formula itself is built on.</li>
+      <li><a href="https://timberborn.wiki.gg/wiki/Nutrition" target="_blank" rel="noopener">timberborn.wiki.gg/wiki/Nutrition</a>
+      — "Beavers eat 2.67 Food per day," corroborated by
+      <a href="https://timberborn.org/articles/population-management-guide" target="_blank" rel="noopener">timberborn.org/articles/population-management-guide</a>'s
+      stated range of "2.5 to 3 units per beaver per day." The same guide states kits "consume food
+      and water at the same rate as adults," which is why this page uses one consumption rate rather
+      than separate adult/child rates.</li>
+      <li><a href="https://timberborn.wiki.gg/wiki/Thirst" target="_blank" rel="noopener">timberborn.wiki.gg/wiki/Thirst</a>
+      — "Beavers drink between 2 and 3 units of Water a day," derived precisely as "-70/day / 33 per
+      water consumed = 2.121 units of water a day on average," corroborated by timberborn.org's
+      "approximately 2.1... 2.25 water per beaver per day" planning figure. This page uses 2.1.</li>
+      <li>Competition re-check (2026-10-09): searched "timberborn population growth calculator" and
+      "timberborn breeding pod calculator." The three known calculators —
+      <a href="https://timberborn.calcspirit.com" target="_blank" rel="noopener">timberborn.calcspirit.com</a>
+      (confirmed via its own page metadata: production ratios, beaver needs, power, water/food
+      storage, district planning, 3D dam planner — no population/breeding feature in its HTML or
+      meta description), the Discord-maintained "Timberborn Calculator" Google Sheet (food/water
+      supply planning only, per its own description), and Calculator City's Timberborn entry
+      ("Food &amp; Water Supply Planner," per its indexed title/description; the live page
+      Cloudflare-blocks direct fetches) — are all resource/production planners, none describing a
+      population-growth or breeding-timing projection. A live player-upvote thread,
+      <a href="https://timberborn.featureupvote.com/suggestions/499428/show-population-estimate-on-each-breeding-pod" target="_blank" rel="noopener">"Show population estimate on each breeding pod"</a>,
+      confirms this exact gap is still unresolved even inside the game's own UI.</li>
+    </ol>
+    <p class="self-test" id="selfTest">running self-test…</p>
+  </section>
+</main>
+
+<footer>
+  Fan-made calculator, unaffiliated with Mechanistry. Figures above reflect the sources cited,
+  fetched 2026-10-09, and may not match every patch — verify against your own game's overview and
+  resource panels before relying on a number. No account, no server, no data leaves your browser.
+</footer>
+
+<script src="calc.js"></script>
+<script>
+(function () {
+  "use strict";
+  var C = window.TBCALC;
+
+  function num(id) {
+    var el = document.getElementById(id);
+    var v = parseFloat(el.value);
+    return isNaN(v) ? 0 : v;
+  }
+  function rawNum(id) {
+    var el = document.getElementById(id);
+    return el.value;
+  }
+
+  function cell(label, value, sub, deficit) {
+    var div = document.createElement("div");
+    div.className = "output-cell";
+    var l = document.createElement("span");
+    l.className = "output-label";
+    l.textContent = label;
+    var v = document.createElement("span");
+    v.className = "output-value" + (deficit ? " deficit" : "");
+    v.textContent = value;
+    div.appendChild(l);
+    div.appendChild(v);
+    if (sub) {
+      var s = document.createElement("span");
+      s.className = "output-sub";
+      s.textContent = sub;
+      div.appendChild(s);
+    }
+    return div;
+  }
+
+  function fmtDay(day) {
+    return day + " day" + (day === 1 ? "" : "s") + " (~" + (day / 7).toFixed(1) + " wk)";
+  }
+
+  function renderIronTeeth() {
+    var pop = num("itPop");
+    var pods = num("itPods");
+    var wellbeing = num("itWellbeing");
+    var cycleDays = num("itCycle") || 5;
+    var food = num("itFood");
+    var water = num("itWater");
+    var targetRaw = rawNum("itTarget");
+    var target = targetRaw === "" ? null : parseFloat(targetRaw);
+
+    var r = C.simulateIronTeeth({
+      startPop: pop, pods: pods, wellbeing: wellbeing, cycleDays: cycleDays,
+      foodSurplus: food, waterSurplus: water, targetPop: target, horizonDays: 730
+    });
+    var ceiling = C.resourceCeiling(food, water);
+
+    var box = document.getElementById("itOutputBox");
+    box.innerHTML = "";
+
+    box.appendChild(cell(
+      "Beavers sustained per pod",
+      r.capacityPerPod,
+      "at well-being " + wellbeing + " — see Sources for the band table"
+    ));
+    box.appendChild(cell(
+      "Colony equilibrium capacity",
+      pods + " pod(s) × " + r.capacityPerPod + " = " + r.totalCapacity,
+      r.reachedCapacity ? "projection stops growth here" : "not reached within 2-year horizon"
+    ));
+    box.appendChild(cell(
+      "Resource ceiling right now",
+      "+" + ceiling + " beavers",
+      "how many more your CURRENT surplus alone can feed, before any pod growth"
+    ));
+    box.appendChild(cell(
+      "Food surplus goes negative",
+      r.foodWarningDay === null ? "not within projection" : fmtDay(r.foodWarningDay),
+      r.foodWarningDay === null ? "your entered food surplus covers the full projected growth" : "at this point, added population outpaces your entered food surplus",
+      r.foodWarningDay !== null
+    ));
+    box.appendChild(cell(
+      "Water surplus goes negative",
+      r.waterWarningDay === null ? "not within projection" : fmtDay(r.waterWarningDay),
+      r.waterWarningDay === null ? "your entered water surplus covers the full projected growth" : "at this point, added population outpaces your entered water surplus",
+      r.waterWarningDay !== null
+    ));
+    if (target !== null) {
+      box.appendChild(cell(
+        "Time to reach population " + target,
+        r.targetDay === null ? "not reached" : fmtDay(r.targetDay),
+        r.targetDay === null ? "target is above this setup's equilibrium capacity (" + r.totalCapacity + ")" : "at current pod count and well-being"
+      ));
+    }
+
+    var table = document.getElementById("itCurveTable");
+    var thead = table.querySelector("thead");
+    var tbody = table.querySelector("tbody");
+    thead.innerHTML = "<tr><th>Day</th><th>Week</th><th>Population</th><th>Projected food surplus</th><th>Projected water surplus</th></tr>";
+    tbody.innerHTML = "";
+    r.timeline.forEach(function (row) {
+      var tr = document.createElement("tr");
+      var isWarnRow = (r.foodWarningDay === row.day) || (r.waterWarningDay === row.day);
+      if (isWarnRow) tr.className = "warning-row";
+      tr.innerHTML =
+        "<td>" + row.day + "</td>" +
+        "<td>" + (row.day / 7).toFixed(1) + "</td>" +
+        "<td class='num'>" + row.pop + "</td>" +
+        "<td class='num" + (row.food < 0 ? " deficit" : "") + "'>" + row.food.toFixed(2) + "</td>" +
+        "<td class='num" + (row.water < 0 ? " deficit" : "") + "'>" + row.water.toFixed(2) + "</td>";
+      tbody.appendChild(tr);
+    });
+  }
+
+  function renderFolktails() {
+    var pop = num("ftPop");
+    var households = num("ftHouseholds");
+    var lifeExp = num("ftLifeExp");
+    var maturation = num("ftMaturation") || 5;
+    var food = num("ftFood");
+    var water = num("ftWater");
+
+    var eq = C.folktailsEquilibrium({ lifeExpectancy: lifeExp, maturationDays: maturation, households: households });
+    var ceiling = C.resourceCeiling(food, water);
+    var impliedGrowth = Math.max(0, Math.round(eq.steadyStatePop) - pop);
+    var outpaces = impliedGrowth > ceiling;
+
+    var box = document.getElementById("ftOutputBox");
+    box.innerHTML = "";
+
+    box.appendChild(cell(
+      "Steady-state ratio (official formula)",
+      eq.ratio.toFixed(1) + " adults per breeding household",
+      "lifeExpectancy ÷ maturation = " + lifeExp + " ÷ " + maturation
+    ));
+    box.appendChild(cell(
+      "Estimated steady-state population",
+      Math.round(eq.steadyStatePop),
+      households + " household(s) × " + eq.ratio.toFixed(1) + " — this page's own extrapolation, not a verified in-game total (see Sources)"
+    ));
+    box.appendChild(cell(
+      "Resource ceiling right now",
+      "+" + ceiling + " beavers",
+      "how many more your CURRENT surplus alone can feed"
+    ));
+    box.appendChild(cell(
+      outpaces ? "Breeding may outpace your surplus" : "Surplus covers estimated breeding capacity",
+      outpaces ? ("short by ~" + (impliedGrowth - ceiling) + " beavers") : "within current surplus",
+      "no week-by-week timeline is shown — see the correction box above for why",
+      outpaces
+    ));
+  }
+
+  function selectFaction(isIronTeeth) {
+    document.getElementById("btnIronTeeth").classList.toggle("active", isIronTeeth);
+    document.getElementById("btnFolktails").classList.toggle("active", !isIronTeeth);
+    document.getElementById("ironTeethPanel").classList.toggle("hidden", !isIronTeeth);
+    document.getElementById("folktailsPanel").classList.toggle("hidden", isIronTeeth);
+  }
+
+  document.getElementById("btnIronTeeth").addEventListener("click", function () {
+    selectFaction(true);
+    renderIronTeeth();
+  });
+  document.getElementById("btnFolktails").addEventListener("click", function () {
+    selectFaction(false);
+    renderFolktails();
+  });
+
+  ["itPop", "itPods", "itWellbeing", "itCycle", "itFood", "itWater", "itTarget"].forEach(function (id) {
+    document.getElementById(id).addEventListener("input", renderIronTeeth);
+  });
+  ["ftPop", "ftHouseholds", "ftLifeExp", "ftMaturation", "ftFood", "ftWater"].forEach(function (id) {
+    document.getElementById(id).addEventListener("input", renderFolktails);
+  });
+
+  renderIronTeeth();
+  renderFolktails();
+
+  // In-page mirror of the three headless known-answer tests in test.js, so opening the file
+  // directly also proves the math without a terminal.
+  (function selfTest() {
+    var el = document.getElementById("selfTest");
+    var pass = 0, total = 3;
+    var a = C.simulateIronTeeth({ startPop: 30, pods: 2, wellbeing: 50, cycleDays: 5, foodSurplus: 20, waterSurplus: 100, targetPop: 40 });
+    if (a.totalCapacity === 40 && a.foodWarningDay === 20 && a.targetDay === 25) pass++;
+    var b = C.simulateIronTeeth({ startPop: 5, pods: 1, wellbeing: 10, cycleDays: 5, foodSurplus: 50, waterSurplus: 3, targetPop: 12 });
+    if (b.totalCapacity === 12 && b.waterWarningDay === 10 && b.targetDay === 35) pass++;
+    var c = C.folktailsEquilibrium({ lifeExpectancy: 60, maturationDays: 5, households: 1 });
+    if (c.ratio === 12) pass++;
+    el.textContent = "self-test: " + pass + "/" + total + " known-answer scenarios passed";
+    el.className = "self-test " + (pass === total ? "ok" : "bad");
+  })();
+})();
+</script>
+</body>
+</html>
